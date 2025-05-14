@@ -1,0 +1,74 @@
+from flask import Flask, request, jsonify
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from cryptography.fernet import Fernet
+
+# ------------------- INIT APP ------------------- #
+app = Flask(__name__)
+feedback_store = []
+
+# ------------------- AI MODEL ------------------- #
+import pandas as pd
+
+# Dummy training data
+data = pd.DataFrame({
+    "feedback": ["Love the service!", "Horrible support", "Great assistance", "Bad experience"],
+    "sentiment": [1, 0, 1, 0]  # 1 = Positive, 0 = Negative
+})
+
+# Training sentiment analysis model
+model = Pipeline([
+    ("tfidf", TfidfVectorizer()),
+    ("clf", LogisticRegression())
+])
+model.fit(data["feedback"], data["sentiment"])
+
+def predict_sentiment(text):
+    return "Positive" if model.predict([text])[0] == 1 else "Negative"
+
+# ------------------- SECURITY ------------------- #
+key = Fernet.generate_key()
+cipher_suite = Fernet(key)
+
+def encrypt_data(data: str) -> str:
+    return cipher_suite.encrypt(data.encode()).decode()
+
+def decrypt_data(encrypted_data: str) -> str:
+    return cipher_suite.decrypt(encrypted_data.encode()).decode()
+
+# ------------------- CHATBOT ------------------- #
+def get_response(msg):
+    msg_lower = msg.lower()
+    if "order" in msg_lower:
+        return "You can track your order on your profile page."
+    elif "refund" in msg_lower:
+        return "Please allow 5–7 business days for refunds."
+    elif "help" in msg_lower:
+        return "I'm here to assist you. What do you need help with?"
+    else:
+        return "I'm here to help! Can you please clarify your question?"
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    user_input = request.json.get("message", "")
+    reply = get_response(user_input)
+    return jsonify({"response": reply})
+
+# ------------------- FEEDBACK ------------------- #
+@app.route('/feedback', methods=['POST'])
+def collect_feedback():
+    feedback = request.json.get("feedback")
+    encrypted = encrypt_data(feedback)
+    feedback_store.append(encrypted)
+    sentiment = predict_sentiment(feedback)
+    return jsonify({"message": "Thank you for your feedback!", "sentiment": sentiment})
+
+@app.route('/feedback', methods=['GET'])
+def get_feedback():
+    decrypted_feedback = [decrypt_data(item) for item in feedback_store]
+    return jsonify(decrypted_feedback)
+
+# ------------------- MAIN ------------------- #
+if __name__ == "__main__":
+    app.run(debug=True)
