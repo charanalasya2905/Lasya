@@ -1,0 +1,104 @@
+# ai_customer_chatbot.py
+
+import random
+import json
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import nltk
+from nltk.stem import WordNetLemmatizer
+import numpy as np
+import pickle
+import os
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
+
+app = Flask(__name__)
+CORS(app)
+lemmatizer = WordNetLemmatizer()
+
+# 1. Load Intents
+with open("intents.json") as f:
+    intents = json.load(f)
+
+# 2. Preprocess and Train the Model
+def preprocess():
+    words = []
+    classes = []
+    documents = []
+    ignore_letters = ['?', '!', '.', ',']
+
+    for intent in intents['intents']:
+        for pattern in intent['patterns']:
+            word_list = nltk.word_tokenize(pattern)
+            words.extend(word_list)
+            documents.append((word_list, intent['tag']))
+            if intent['tag'] not in classes:
+                classes.append(intent['tag'])
+
+    words = [lemmatizer.lemmatize(w.lower()) for w in words if w not in ignore_letters]
+    words = sorted(list(set(words)))
+    classes = sorted(list(set(classes)))
+
+    training_sentences = []
+    training_labels = []
+
+    for doc in documents:
+        sentence = " ".join([lemmatizer.lemmatize(w.lower()) for w in doc[0]])
+        training_sentences.append(sentence)
+        training_labels.append(classes.index(doc[1]))
+
+    vectorizer = CountVectorizer()
+    X = vectorizer.fit_transform(training_sentences)
+    y = np.array(training_labels)
+
+    model = MultinomialNB()
+    model.fit(X, y)
+
+    # Save required files
+    with open("vectorizer.pkl", "wb") as f:
+        pickle.dump(vectorizer, f)
+    with open("model.pkl", "wb") as f:
+        pickle.dump(model, f)
+    with open("words.pkl", "wb") as f:
+        pickle.dump(words, f)
+    with open("classes.pkl", "wb") as f:
+        pickle.dump(classes, f)
+
+    print("✅ Model trained and saved.")
+
+if not os.path.exists("model.pkl"):
+    nltk.download("punkt")
+    nltk.download("wordnet")
+    preprocess()
+
+# 3. Load trained model and vectorizer
+vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
+model = pickle.load(open("model.pkl", "rb"))
+classes = pickle.load(open("classes.pkl", "rb"))
+
+# 4. Predict intent and get response
+def get_response(message):
+    msg_clean = lemmatizer.lemmatize(message.lower())
+    X_test = vectorizer.transform([msg_clean])
+    predicted_index = model.predict(X_test)[0]
+    intent_tag = classes[predicted_index]
+
+    for intent in intents["intents"]:
+        if intent["tag"] == intent_tag:
+            return random.choice(intent["responses"])
+
+    return "Sorry, I didn't understand that."
+
+# 5. Flask route
+@app.route("/chat", methods=["POST"])
+def chat():
+    user_message = request.json.get("message")
+    if not user_message:
+        return jsonify({"error": "Message required"}), 400
+
+    response = get_response(user_message)
+    return jsonify({"response": response})
+
+if __name__ == "__main__":
+    app.run(debug=True)
