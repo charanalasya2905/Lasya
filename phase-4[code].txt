@@ -1,0 +1,93 @@
+import random
+import time
+import hashlib
+from textblob import TextBlob
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from cryptography.fernet import Fernet
+import matplotlib.pyplot as plt
+
+
+# 1. AI-DRIVEN PRODUCT RECOMMENDATION
+def recommend_products(user_query, product_list):
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform([user_query] + product_list)
+    scores = cosine_similarity(vectors[0:1], vectors[1:]).flatten()
+    recommended_index = scores.argmax()
+    return product_list[recommended_index]
+
+
+# 2. BASIC CHATBOT WITH SENTIMENT ANALYSIS
+def chatbot_response(user_input):
+    sentiment = TextBlob(user_input).sentiment.polarity
+    if sentiment > 0.3:
+        return "I'm glad you're having a good experience!"
+    elif sentiment < -0.3:
+        return "I'm sorry to hear that. Let me connect you to a human agent."
+    else:
+        return "Thank you for your input! How else can I assist you?"
+
+
+# 3. SIMULATE IOT FOR LOCATION-BASED OFFER
+def get_location_offer(location):
+    offers = {
+        "Mall": "Get 20% off on electronics today!",
+        "Supermarket": "Buy 1 Get 1 Free on selected groceries!",
+        "Airport": "Free coffee with every purchase at Lounge Café!"
+    }
+    return offers.get(location, "No offers available for your current location.")
+
+
+# 4. DATA ENCRYPTION FOR CUSTOMER PRIVACY
+def encrypt_data(data, key):
+    f = Fernet(key)
+    return f.encrypt(data.encode())
+
+def decrypt_data(token, key):
+    f = Fernet(key)
+    return f.decrypt(token).decode()
+
+
+# 5. PERFORMANCE TESTING (RESPONSE TIME SIMULATION)
+def performance_test():
+    times = []
+    for _ in range(10):
+        start = time.time()
+        _ = recommend_products("smartphone with good camera", ["budget phone", "smartphone with good camera", "gaming phone"])
+        end = time.time()
+        times.append(end - start)
+
+    plt.plot(times, marker='o')
+    plt.title("Recommendation Response Time")
+    plt.xlabel("Attempt")
+    plt.ylabel("Time (s)")
+    plt.grid(True)
+    plt.show()
+
+
+# MAIN EXECUTION
+if __name__ == "__main__":
+    # AI Product Recommendation
+    products = ["gaming laptop", "smartphone with good camera", "budget smartwatch", "wireless headphones"]
+    recommendation = recommend_products("looking for a phone with excellent camera", products)
+    print("Recommended Product:", recommendation)
+
+    # Chatbot with Sentiment Detection
+    user_input = "I hate the delivery delay"
+    response = chatbot_response(user_input)
+    print("Chatbot Response:", response)
+
+    # IoT Location-Based Marketing
+    location = "Mall"
+    offer = get_location_offer(location)
+    print(f"Offer for {location}: {offer}")
+
+    # Encrypting & Decrypting User Data
+    key = Fernet.generate_key()
+    encrypted = encrypt_data("UserEmail@example.com", key)
+    decrypted = decrypt_data(encrypted, key)
+    print("Encrypted:", encrypted)
+    print("Decrypted:", decrypted)
+
+    # Performance Test
+    performance_test()
